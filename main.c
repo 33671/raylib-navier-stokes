@@ -155,12 +155,12 @@ static void fluid_splat(Fluid *f, float x, float y,
     int dw = DYE_W, dh = DYE_H;
 
     /* Gauss kernel: exp(-d² / radius)  — radius is in UV units           */
-    float radSq = (g_splatRadius * 0.01f);    /* /100 like original      */
+    float radSq = (g_splatRadius * 0.04f);    /* scale down (@ /25)      */
     radSq = radSq * radSq;
     if (radSq < 1e-8f) radSq = 1e-8f;
 
     /* ---- velocity splat (sim grid) ---- */
-    int r0 = (int)((g_splatRadius * 0.01f * sw) + 1);
+    int r0 = (int)((g_splatRadius * 0.04f * sw) + 2);
     int cx = (int)(x * sw + 0.5f);
     int cy = (int)(y * sh + 0.5f);
 
@@ -177,7 +177,7 @@ static void fluid_splat(Fluid *f, float x, float y,
     }
 
     /* ---- dye splat (dye grid) ---- */
-    r0 = (int)((g_splatRadius * 0.01f * dw) + 1);
+    r0 = (int)((g_splatRadius * 0.04f * dw) + 2);
     cx = (int)(x * dw + 0.5f);
     cy = (int)(y * dh + 0.5f);
     for (int j = cy - r0; j <= cy + r0; j++) {
@@ -788,18 +788,22 @@ static void apply_sunrays(Texture2D src, RenderTexture2D dst) {
 /*  Texture upload (dye → GPU)                                         */
 /* ------------------------------------------------------------------ */
 static void upload_dye(Fluid *f) {
-    int dw = DYE_W, dh = DYE_H, dn = dw * dh;
-    unsigned char *pixels = (unsigned char*)malloc(dn * 4);
-    for (int i = 0; i < dn; i++) {
-        float r = f->dr[i];
-        float g = f->dg[i];
-        float b = f->db[i];
-        /* simple tone mapping to avoid over-bright spots */
-        float m = 1.0f + fmaxf(r, fmaxf(g, b));
-        pixels[i*4 + 0] = (unsigned char)(clampf(r/m, 0,1) * 255);
-        pixels[i*4 + 1] = (unsigned char)(clampf(g/m, 0,1) * 255);
-        pixels[i*4 + 2] = (unsigned char)(clampf(b/m, 0,1) * 255);
-        pixels[i*4 + 3] = 255;
+    int dw = DYE_W, dh = DYE_H;
+    unsigned char *pixels = (unsigned char*)malloc(dw * dh * 4);
+    for (int j = 0; j < dh; j++) {
+        int simRow = dh - 1 - j;   /* flip Y: sim bottom→image bottom */
+        for (int i = 0; i < dw; i++) {
+            int idx = simRow * dw + i;
+            float r = f->dr[idx];
+            float g = f->dg[idx];
+            float b = f->db[idx];
+            float m = 1.0f + fmaxf(r, fmaxf(g, b));
+            int p = (j * dw + i) * 4;
+            pixels[p + 0] = (unsigned char)(clampf(r/m, 0,1) * 255);
+            pixels[p + 1] = (unsigned char)(clampf(g/m, 0,1) * 255);
+            pixels[p + 2] = (unsigned char)(clampf(b/m, 0,1) * 255);
+            pixels[p + 3] = 255;
+        }
     }
     UpdateTexture(g_dyeTex, pixels);
     free(pixels);
@@ -907,7 +911,7 @@ int main(void) {
                 float x  = lastMouse.x / sw;
                 float y  = 1.0f - lastMouse.y / sh;
                 float dx = (d.x / sw)  * g_splatForce;
-                float dy = (d.y / sh)  * g_splatForce;
+                float dy = (d.y / sh)  * g_splatForce * -1.0f;
                 float cr = pointerColor.r / 255.0f;
                 float cg = pointerColor.g / 255.0f;
                 float cb = pointerColor.b / 255.0f;
@@ -967,7 +971,7 @@ int main(void) {
         if (g_shading) {
             BeginShaderMode(g_shaderDisplay);
             {
-                float ts[2] = { 1.0f/(float)DYE_W, 1.0f/(float)DYE_H };
+                float ts[2] = { 1.0f/(float)DYE_W, -1.0f/(float)DYE_H };
                 SetShaderValue(g_shaderDisplay, g_locTexelSize, ts, SHADER_UNIFORM_VEC2);
                 float shade = 1.0f;
                 SetShaderValue(g_shaderDisplay, g_locShadeOn,
