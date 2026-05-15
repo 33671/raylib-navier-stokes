@@ -1,0 +1,51 @@
+r.setRenderTarget(rs.fluidDye[rs.currentFluidDye]);
+setPipeline(r, rs, EPipeline::basic2D);
+drawVerts(r, EDrawLayer::fluidDye);
+rs.currentFluidDye = 1 - rs.currentFluidDye;
+
+//advect velocity
+r.setShaderResource(0, rs.fluidV[1 - rs.currentFluidV], ESampleMode::bilinear);
+renderRT(r, rs, rs.fluidV[rs.currentFluidV], EPipeline::fluidAdvectV);
+
+//advect dye
+r.setShaderResource(0, rs.fluidV[1 - rs.currentFluidV], ESampleMode::bilinear);
+r.setShaderResource(1, rs.fluidDye[1 - rs.currentFluidDye], ESampleMode::bilinear);
+renderRT(r, rs, rs.fluidDye[rs.currentFluidDye], EPipeline::fluidAdvect);
+
+//dye fades away over time
+rs.currentFluidDye = 1 - rs.currentFluidDye;
+r.setShaderResource(0, rs.fluidDye[1 - rs.currentFluidDye], ESampleMode::bilinear);
+renderRT(r, rs, rs.fluidDye[rs.currentFluidDye], EPipeline::fluidFadeAway);
+
+//draw external forces
+setPipeline(r, rs, EPipeline::fluidForce);
+r.setShaderResource(0, rs.mainTexture);
+r.setRenderTarget(rs.fluidV[rs.currentFluidV]);
+drawVerts(r, EDrawLayer::fluidForce);
+rs.currentFluidV = 1 - rs.currentFluidV;
+
+//compute divergence
+r.clearRenderTarget(rs.fluidDivergence);
+r.setShaderResource(0, rs.fluidV[1 - rs.currentFluidV], ESampleMode::bilinear);
+renderRT(r, rs, rs.fluidDivergence, EPipeline::fluidDivergence);
+
+//compute pressure
+r.setShaderResource(2, rs.fluidDivergence, ESampleMode::bilinear);
+
+int iterationCount = 40;
+for (int i = 0; i < iterationCount; ++i)
+{
+    r.setShaderResource(1, rs.fluidP[1 - rs.currentFluidP], ESampleMode::bilinear);
+    renderRT(r, rs, rs.fluidP[rs.currentFluidP], EPipeline::fluidJacobi);
+    rs.currentFluidP = 1 - rs.currentFluidP;
+}
+
+//subtract pressure gradient
+r.setShaderResource(0, rs.fluidV[1 - rs.currentFluidV], ESampleMode::bilinear);
+r.setShaderResource(1, rs.fluidP[1 - rs.currentFluidP], ESampleMode::bilinear);
+renderRT(r, rs, rs.fluidV[rs.currentFluidV], EPipeline::fluidSubtractPressureGradient);
+rs.currentFluidV = 1 - rs.currentFluidV;
+
+r.setShaderResource(0, rs.fluidV[1 - rs.currentFluidV], ESampleMode::bilinear);
+r.setShaderResource(1, rs.fluidDye[1 - rs.currentFluidDye], ESampleMode::bilinear);
+renderRT(r, rs, target, EPipeline::fluidRender);
