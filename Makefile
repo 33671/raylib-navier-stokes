@@ -1,14 +1,10 @@
 # Navier-Stokes Fluid Simulation Makefile
-# Builds raylib from source and links the fluid simulation
+# Uses homebrew-installed raylib via pkg-config
 
 CC       = gcc
-CFLAGS   = -Wall -Wextra -O2
-LDLIBS   = -lm -lpthread -ldl -lrt -lX11
-
-# Raylib paths
-RAYLIB_DIR  = raylib
-RAYLIB_SRC  = $(RAYLIB_DIR)/src
-RAYLIB_LIB  = $(RAYLIB_DIR)/src/libraylib.a
+PKG      = pkg-config
+CFLAGS   = -Wall -Wextra -O2 $(shell $(PKG) --cflags raylib)
+LDLIBS   = $(shell $(PKG) --libs raylib) -lm
 
 TARGET = navier_stokes
 
@@ -16,22 +12,11 @@ TARGET = navier_stokes
 
 all: $(TARGET)
 
-# Build raylib static library using raylib's own Makefile
-$(RAYLIB_LIB):
-	cd $(RAYLIB_DIR)/src && $(MAKE) PLATFORM=PLATFORM_DESKTOP RAYLIB_LIBTYPE=STATIC
+# Compile and link
+$(TARGET): main.c
+	$(CC) $(CFLAGS) $< $(LDLIBS) -o $@
 
-# Compile main program
-main.o: main.c
-	$(CC) $(CFLAGS) -I$(RAYLIB_SRC) -c $< -o $@
-
-# Link everything
-$(TARGET): main.o $(RAYLIB_LIB)
-	$(CC) $(CFLAGS) main.o $(RAYLIB_LIB) $(LDLIBS) -o $@
-
-# Quick rebuild (force recompile main.c only)
-rebuild: clean main.o $(RAYLIB_LIB)
-	$(CC) $(CFLAGS) main.o $(RAYLIB_LIB) $(LDLIBS) -o $(TARGET)
+rebuild: clean $(TARGET)
 
 clean:
 	rm -f *.o $(TARGET) helloworld
-	cd $(RAYLIB_DIR)/src && $(MAKE) clean
