@@ -24,7 +24,7 @@
 #define DYE_W          256
 #define DYE_H          256
 
-#define PRESSURE_ITERS 20
+#define PRESSURE_ITERS 40
 
 static float g_densityDissipation  = 1.0f;
 static float g_velocityDissipation = 0.2f;
@@ -89,7 +89,7 @@ static Color hsv_to_rgb(float h, float s, float v) {
 /*  Grid helpers                                                       */
 /* ------------------------------------------------------------------ */
 static inline int idx2(int x, int y, int w)   { return y*w + x; }
-/* bilinear sample from a float grid; returns 0 outside */
+/* bilinear sample from a float grid; clamps to edge (matching WebGL CLAMP_TO_EDGE) */
 static float sample_bilinear(const float *field, int w, int h, float x, float y) {
     x = x - 0.5f;   /* cell-centre → corner index */
     y = y - 0.5f;
@@ -97,10 +97,16 @@ static float sample_bilinear(const float *field, int w, int h, float x, float y)
     int   x1 = x0 + 1,          y1 = y0 + 1;
     float fx = x - x0,          fy = y - y0;
 
-    float v00 = (x0>=0 && x0<w && y0>=0 && y0<h) ? field[y0*w + x0] : 0.0f;
-    float v10 = (x1>=0 && x1<w && y0>=0 && y0<h) ? field[y0*w + x1] : 0.0f;
-    float v01 = (x0>=0 && x0<w && y1>=0 && y1<h) ? field[y1*w + x0] : 0.0f;
-    float v11 = (x1>=0 && x1<w && y1>=0 && y1<h) ? field[y1*w + x1] : 0.0f;
+    /* clamp to edge (not zero) */
+    if (x0 < 0) x0 = 0; if (x0 >= w) x0 = w-1;
+    if (x1 < 0) x1 = 0; if (x1 >= w) x1 = w-1;
+    if (y0 < 0) y0 = 0; if (y0 >= h) y0 = h-1;
+    if (y1 < 0) y1 = 0; if (y1 >= h) y1 = h-1;
+
+    float v00 = field[y0*w + x0];
+    float v10 = field[y0*w + x1];
+    float v01 = field[y1*w + x0];
+    float v11 = field[y1*w + x1];
 
     float v0 = v00 + (v10 - v00) * fx;
     float v1 = v01 + (v11 - v01) * fx;
@@ -219,10 +225,10 @@ static void fluid_step(Fluid *f, float dt) {
     /* -- 2. Vorticity confinement ----------------------------------- */
     for (int j = 0; j < sh; j++) {
         for (int i = 0; i < sw; i++) {
-            float L = (i > 0)      ? curl[idx2(i-1,j,sw)] : 0;
-            float R = (i < sw-1)   ? curl[idx2(i+1,j,sw)] : 0;
-            float T = (j < sh-1)   ? curl[idx2(i,j+1,sw)] : 0;
-            float B = (j > 0)      ? curl[idx2(i,j-1,sw)] : 0;
+            float L = (i > 0)      ? curl[idx2(i-1,j,sw)] : curl[idx2(0,j,sw)];
+            float R = (i < sw-1)   ? curl[idx2(i+1,j,sw)] : curl[idx2(sw-1,j,sw)];
+            float T = (j < sh-1)   ? curl[idx2(i,j+1,sw)] : curl[idx2(i,sh-1,sw)];
+            float B = (j > 0)      ? curl[idx2(i,j-1,sw)] : curl[idx2(i,0,sw)];
             float C = curl[idx2(i,j,sw)];
 
             float fx = fabsf(T) - fabsf(B);
@@ -271,8 +277,6 @@ static void fluid_step(Fluid *f, float dt) {
         /* swap p <-> vx0 scratch */
         { float *tmp = p; p = vx0; vx0 = tmp; }
     }
-    /* restore pointers: p is correct, vx0 back */
-    { float *tmp = p; p = vx0; vx0 = tmp; }
 
     /* -- 5. Gradient subtraction ------------------------------------ */
     for (int j = 0; j < sh; j++) {
