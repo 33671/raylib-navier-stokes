@@ -19,16 +19,19 @@
 /* ------------------------------------------------------------------ */
 /*  Configuration                                                      */
 /* ------------------------------------------------------------------ */
-#define SIM_W          128
-#define SIM_H          128
+#define SIM_W          256
+#define SIM_H          256
 #define DYE_W          256
 #define DYE_H          256
-
+// #define SIM_W          1024
+// #define SIM_H          1024
+// #define DYE_W          1024
+// #define DYE_H          1024
 #define PRESSURE_ITERS 40
 
 static float g_densityDissipation  = .6f;
 static float g_velocityDissipation = 0.2f;
-static float g_pressure            = 0.8f;
+static float g_pressure            = 0.1f;
 static float g_curlAmount          = 30.0f;
 static float g_splatRadius         = 0.8f;    /* divided by 100 in splat, net ~0.0025 */
 static float g_splatForce          = 12000.0f;
