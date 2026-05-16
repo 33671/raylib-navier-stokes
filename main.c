@@ -26,12 +26,12 @@
 
 #define PRESSURE_ITERS 40
 
-static float g_densityDissipation  = 1.0f;
+static float g_densityDissipation  = .6f;
 static float g_velocityDissipation = 0.2f;
 static float g_pressure            = 0.8f;
 static float g_curlAmount          = 30.0f;
-static float g_splatRadius         = 0.25f;    /* divided by 100 in splat, net ~0.0025 */
-static float g_splatForce          = 6000.0f;
+static float g_splatRadius         = 0.8f;    /* divided by 100 in splat, net ~0.0025 */
+static float g_splatForce          = 12000.0f;
 
 static bool  g_shading             = true;
 static bool  g_colorful            = true;
@@ -214,10 +214,11 @@ static void fluid_step(Fluid *f, float dt) {
     /* -- 1. Curl ---------------------------------------------------- */
     for (int j = 0; j < sh; j++) {
         for (int i = 0; i < sw; i++) {
-            float L = (i > 0)      ? vy[idx2(i-1,j,sw)] : -vy[idx2(0,j,sw)];
-            float R = (i < sw-1)   ? vy[idx2(i+1,j,sw)] : -vy[idx2(sw-1,j,sw)];
-            float T = (j < sh-1)   ? vx[idx2(i,j+1,sw)] : -vx[idx2(i,sh-1,sw)];
-            float B = (j > 0)      ? vx[idx2(i,j-1,sw)] : -vx[idx2(i,0,sw)];
+            /* clamp-to-edge (matches WebGL CLAMP_TO_EDGE), NOT no-slip */
+            float L = (i > 0)      ? vy[idx2(i-1,j,sw)] : vy[idx2(0,j,sw)];
+            float R = (i < sw-1)   ? vy[idx2(i+1,j,sw)] : vy[idx2(sw-1,j,sw)];
+            float T = (j < sh-1)   ? vx[idx2(i,j+1,sw)] : vx[idx2(i,sh-1,sw)];
+            float B = (j > 0)      ? vx[idx2(i,j-1,sw)] : vx[idx2(i,0,sw)];
             curl[idx2(i,j,sw)] = 0.5f * (R - L - T + B);
         }
     }
