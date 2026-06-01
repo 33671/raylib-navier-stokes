@@ -1,10 +1,9 @@
 # Navier-Stokes Fluid Simulation Makefile
-# Uses homebrew-installed raylib via pkg-config
+# Uses local raylib build (raylib/src/)
 
 CC       = gcc
-PKG      = pkg-config
-CFLAGS   = -Wall -Wextra -O2 $(shell $(PKG) --cflags raylib)
-LDLIBS   = $(shell $(PKG) --libs raylib) -lm
+CFLAGS   = -Wall -Wextra -O2 -I./raylib/src
+LDLIBS   = ./raylib/src/libraylib.a -lGL -lm -lpthread -ldl -lrt -lX11
 
 TARGET = navier_stokes
 
